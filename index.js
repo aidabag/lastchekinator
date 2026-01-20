@@ -1,9 +1,9 @@
 const express = require('express');
-const puppeteer = require('puppeteer');
+const puppeteer = require('puppeteer-core');
 
 const app = express();
 
-// CORS middleware
+// CORS middleware (если нужно)
 app.use((req, res, next) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
@@ -11,43 +11,50 @@ app.use((req, res, next) => {
   next();
 });
 
-// маршрут /login/
-app.get('/login/', (_, res) => {
+// Маршрут /login
+app.get('/login', (_req, res) => {
   res.send('aidabag'); // твой логин
 });
 
-// маршрут /zombie/
+// Маршрут /zombie?num=1234
 app.get('/zombie', async (req, res) => {
-  const num = req.query.num; // параметр num
-  if (!num) return res.status(400).send('Number is required');
-
-  const url = `https://kodaktor.ru/g/d7290da?${num}`;
-
-  const browser = await puppeteer.launch({
-    headless: 'new',
-    args: ['--no-sandbox', '--disable-setuid-sandbox'],
-    executablePath: '/usr/bin/chromium-browser' // путь до системного Chromium
-  });
+  const num = req.query.num;
+  if (!num) {
+    return res.status(400).send('Number is required');
+  }
 
   try {
-    const page = await browser.newPage();
-    await page.goto(url, { waitUntil: 'networkidle2' });
+    const browser = await puppeteer.launch({
+      headless: true,
+      args: ['--no-sandbox', '--disable-setuid-sandbox'],
+      executablePath: '/usr/bin/chromium-browser' // системный Chromium Render
+    });
 
+    const page = await browser.newPage();
+    const targetURL = `https://kodaktor.ru/g/d7290da?${num}`;
+    await page.goto(targetURL, { waitUntil: 'networkidle2' });
+
+    // Кликаем по кнопке с id="bt"
     await page.click('#bt');
 
-    // ждём, пока поле #inp получит значение
-    await page.waitForFunction(() => document.querySelector('#inp')?.value, { timeout: 2000 });
+    // Ждём, пока в поле inp появится значение
+    await page.waitForFunction(() => {
+      const input = document.querySelector('#inp');
+      return input && input.value !== '';
+    }, { timeout: 2000 });
 
     const result = await page.$eval('#inp', el => el.value);
 
+    await browser.close();
+    res.set('Content-Type', 'text/plain');
     res.send(result);
   } catch (err) {
-    res.status(500).send('Error: ' + err.message);
-  } finally {
-    await browser.close();
+    console.error(err);
+    res.status(500).send('Error executing Puppeteer');
   }
 });
 
+// Render автоматически берёт PORT
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`Server running on port ${PORT}`);
