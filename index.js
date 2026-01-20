@@ -1,5 +1,5 @@
 const express = require('express');
-const puppeteer = require('puppeteer');
+const puppeteer = require('puppeteer-core');
 
 const app = express();
 
@@ -13,39 +13,38 @@ app.use((req, res, next) => {
 
 // /login
 app.get('/login', (_req, res) => {
-  res.send('aidabag'); 
+  res.send('aidabag'); // ваш логин
 });
 
 // /zombie
 app.get('/zombie', async (req, res) => {
-  const number = req.query[Object.keys(req.query)[0]]; // Получаем число из query
+  const queryKeys = Object.keys(req.query);
+  if (queryKeys.length === 0) return res.status(400).send('Number is required');
 
-  if (!number) return res.status(400).send('Number is required');
-
+  const number = req.query[queryKeys[0]];
   const url = `https://kodaktor.ru/g/d7290da?${number}`;
 
   let browser;
   try {
     browser = await puppeteer.launch({
       headless: true,
+      executablePath: '/usr/bin/chromium-browser', // системный Chromium на Render
       args: ['--no-sandbox', '--disable-setuid-sandbox']
     });
 
     const page = await browser.newPage();
     await page.goto(url, { waitUntil: 'networkidle2' });
 
-    // Клик по кнопке
+    // Клик по кнопке #bt
     await page.click('#bt');
 
-    // Ждём появления результата в поле #inp
+    // Ждём появления значения в поле #inp
     await page.waitForFunction(() => {
-      const input = document.querySelector('#inp');
-      return input && input.value.length > 0;
+      const el = document.querySelector('#inp');
+      return el && el.value.length > 0;
     }, { timeout: 2000 });
 
-    // Чтение значения
     const result = await page.$eval('#inp', el => el.value);
-
     res.send(result);
 
   } catch (err) {
