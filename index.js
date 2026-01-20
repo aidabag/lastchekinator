@@ -3,6 +3,7 @@ const puppeteer = require('puppeteer');
 
 const app = express();
 
+// CORS middleware
 app.use((req, res, next) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
@@ -17,7 +18,7 @@ app.get('/login/', (_, res) => {
 
 // маршрут /zombie/
 app.get('/zombie', async (req, res) => {
-  const num = req.query.num; // <- берём параметр num
+  const num = req.query.num; // параметр num
   if (!num) return res.status(400).send('Number is required');
 
   const url = `https://kodaktor.ru/g/d7290da?${num}`;
@@ -25,23 +26,26 @@ app.get('/zombie', async (req, res) => {
   const browser = await puppeteer.launch({
     headless: 'new',
     args: ['--no-sandbox', '--disable-setuid-sandbox'],
-    executablePath: '/usr/bin/chromium-browser' // для Render
+    executablePath: '/usr/bin/chromium-browser' // путь до системного Chromium
   });
 
-  const page = await browser.newPage();
-  await page.goto(url, { waitUntil: 'networkidle2' });
+  try {
+    const page = await browser.newPage();
+    await page.goto(url, { waitUntil: 'networkidle2' });
 
-  // ждём появления кнопки и кликаем
-  await page.click('#bt');
+    await page.click('#bt');
 
-  // ждём, пока в поле inp появится значение
-  await page.waitForFunction(() => document.querySelector('#inp')?.value, { timeout: 2000 });
+    // ждём, пока поле #inp получит значение
+    await page.waitForFunction(() => document.querySelector('#inp')?.value, { timeout: 2000 });
 
-  const result = await page.$eval('#inp', el => el.value);
+    const result = await page.$eval('#inp', el => el.value);
 
-  await browser.close();
-
-  res.send(result); // возвращаем число
+    res.send(result);
+  } catch (err) {
+    res.status(500).send('Error: ' + err.message);
+  } finally {
+    await browser.close();
+  }
 });
 
 const PORT = process.env.PORT || 3000;
