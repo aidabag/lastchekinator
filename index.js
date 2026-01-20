@@ -4,7 +4,7 @@ const { JSDOM } = require('jsdom');
 
 const app = express();
 
-// CORS middleware (не обязательно, но безопаснее для тестов)
+// CORS
 app.use((req, res, next) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
@@ -12,26 +12,26 @@ app.use((req, res, next) => {
   next();
 });
 
-// Маршрут /login возвращает ваш логин
+// /login возвращает логин
 app.get('/login', (_req, res) => {
   res.send('aidabag');
 });
 
-// Маршрут /zombie?num=<число>
+// /zombie?num=<число>
 app.get('/zombie', async (req, res) => {
   const num = req.query.num;
   if (!num) return res.status(400).send('Number is required');
 
   try {
-    // Подставляем число в URL страницы
+    // Подставляем число в URL
     const url = `https://kodaktor.ru/g/d7290da?${num}`;
     const response = await axios.get(url);
 
-    // Используем jsdom для парсинга HTML
+    // Парсим HTML с jsdom
     const dom = new JSDOM(response.data);
     const input = dom.window.document.querySelector('#inp');
 
-    if (!input) return res.status(500).send('Input not found on page');
+    if (!input) return res.status(500).send('Input not found');
 
     res.set('Content-Type', 'text/plain');
     res.send(input.value);
@@ -40,7 +40,7 @@ app.get('/zombie', async (req, res) => {
   }
 });
 
-// Любой другой маршрут можно отлавливать через 404
+// Все остальные маршруты
 app.all('*', (_req, res) => {
   res.status(404).send('Not Found');
 });
