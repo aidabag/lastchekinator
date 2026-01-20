@@ -1,9 +1,10 @@
 const express = require('express');
-const puppeteer = require('puppeteer-core');
+const axios = require('axios');
+const { JSDOM } = require('jsdom');
 
 const app = express();
 
-// CORS middleware (если нужно)
+// CORS middleware (не обязательно, но безопаснее для тестов)
 app.use((req, res, next) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
@@ -11,50 +12,39 @@ app.use((req, res, next) => {
   next();
 });
 
-// Маршрут /login
+// Маршрут /login возвращает ваш логин
 app.get('/login', (_req, res) => {
-  res.send('aidabag'); // твой логин
+  res.send('aidabag');
 });
 
-// Маршрут /zombie?num=1234
+// Маршрут /zombie?num=<число>
 app.get('/zombie', async (req, res) => {
   const num = req.query.num;
-  if (!num) {
-    return res.status(400).send('Number is required');
-  }
+  if (!num) return res.status(400).send('Number is required');
 
   try {
-    const browser = await puppeteer.launch({
-      headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox']
-    });
+    // Подставляем число в URL страницы
+    const url = `https://kodaktor.ru/g/d7290da?${num}`;
+    const response = await axios.get(url);
 
-    const page = await browser.newPage();
-    const targetURL = `https://kodaktor.ru/g/d7290da?${num}`;
-    await page.goto(targetURL, { waitUntil: 'networkidle2' });
+    // Используем jsdom для парсинга HTML
+    const dom = new JSDOM(response.data);
+    const input = dom.window.document.querySelector('#inp');
 
-    // Кликаем по кнопке с id="bt"
-    await page.click('#bt');
+    if (!input) return res.status(500).send('Input not found on page');
 
-    // Ждём, пока в поле inp появится значение
-    await page.waitForFunction(() => {
-      const input = document.querySelector('#inp');
-      return input && input.value !== '';
-    }, { timeout: 2000 });
-
-    const result = await page.$eval('#inp', el => el.value);
-
-    await browser.close();
     res.set('Content-Type', 'text/plain');
-    res.send(result);
+    res.send(input.value);
   } catch (err) {
-    console.error(err);
-    res.status(500).send('Error executing Puppeteer');
+    res.status(500).send('Error fetching page');
   }
 });
 
-// Render автоматически берёт PORT
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Server running on port ${PORT}`);
+// Любой другой маршрут можно отлавливать через 404
+app.all('*', (_req, res) => {
+  res.status(404).send('Not Found');
 });
+
+// Запуск сервера
+const PORT = process.env.PORT || 10000;
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
